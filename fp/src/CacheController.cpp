@@ -27,9 +27,20 @@ CacheController::CacheController(ConfigInfo ci, char* tracefile) {
 	this->globalHits = 0;
 	this->globalMisses = 0;
 	this->globalEvictions = 0;
+	int numBlocks = this->ci.numberSets * this->ci.associativity;
+	this->sentinel = 999999999;
+	cout << "# BLOCKS: " << numBlocks << endl;
+
+	cout << "initializationing" << endl;
+	//  init cache by placing a -1 at each cache location
+	static vector<unsigned long int> cache;
+	this->cache = &cache;
+	for (int i = 0; i < numBlocks; i++){
+		cache.push_back(this->sentinel);
+	}
 	
-	// create your cache structure
-	// ...
+	cout << "finished initialization" << endl;
+	
 
 	// manual test code to see if the cache is behaving properly
 	// will need to be changed slightly to match the function prototype
@@ -127,6 +138,9 @@ void CacheController::runTracefile() {
 CacheController::AddressInfo CacheController::getAddressInfo(unsigned long int address) {
 	AddressInfo ai;
 	// this code should be changed to assign the proper index and tag
+	ai.tag = address; // TODO: does this need to be changed??
+	ai.setIndex = address % (unsigned int)this->ci.numberSets;
+	cout << this->ci.numberSets << endl;
 	return ai;
 }
 
@@ -139,8 +153,53 @@ void CacheController::cacheAccess(CacheResponse* response, bool isWrite, unsigne
 	AddressInfo ai = getAddressInfo(address);
 
 	cout << "\tSet index: " << ai.setIndex << ", tag: " << ai.tag << endl;
+
+	// pretend this happens all at once
+	// determine outcome: hit/miss/eviction
+	unsigned int blockAddress = this->ci.associativity * ai.setIndex;
 	
+	cout << "cache blocks online: " << this->cache->size() << endl;
+	
+	for (int i = 0; i < this->ci.associativity; i++)
+	{
+		cout << "BLOCKADDR: " << blockAddress << endl;
+		response->hit = false;
+		if (this->cache->at(blockAddress) == this->sentinel){ // not occupied; miss
+			//this->cache->at(1);
+			blockAddress++;
+		}
+		else if (this->cache->data()[blockAddress] == ai.tag){ // hit
+			cout << "HIT" << endl;
+			response->eviction = false;
+			response->dirtyEviction = false;
+			response->hit = true;
+			break;
+		}
+		else { // occupied; eviction, miss
+			if (isWrite){
+				response->eviction = true;
+				response->dirtyEviction = true;
+			}
+			else{
+				response->eviction = true;
+			}
+			blockAddress++;
+		}
+		
+	}
+
+	if (!response->hit)
+	{ // if miss, write tag
+		blockAddress--;
+		cout << "cache[" << blockAddress << "] = " << cache->data()[blockAddress] << endl;
+		cache->data()[blockAddress] = ai.tag; // TODO: implement ReplacementPolicy here ([blockAddr])
+		cout << "Stored " << ai.tag << " at cache[" << blockAddress << "]" << endl;
+	}
+	
+
 	// your code needs to update the global counters that track the number of hits, misses, and evictions
+	updateCycles(response, isWrite); 
+	this->globalCycles += response->cycles;
 
 	if (response->hit)
 		cout << "Address " << std::hex << address << " was a hit." << endl;
@@ -164,32 +223,42 @@ void CacheController::updateCycles(CacheResponse* response, bool isWrite) {
 
 	if (isWrite){ /* on write */
 		if (response->hit){
+			this->globalHits += 1;
 			if (this->ci.wp == WritePolicy::WriteThrough){
 				// write to memory and cache
-				c = this->ci.cacheAccessCycles + this->ci.memoryAccessCycles;
+				c += this->ci.cacheAccessCycles + this->ci.memoryAccessCycles;
 			}
 			else { // in write-back, if we hit on a write, then we don't need to access MM.
-				c = this->ci.cacheAccessCycles;
+				c += this->ci.cacheAccessCycles;
 			}
 		}
 		else { // miss
+			this->globalMisses += 1;
 			if (this->ci.wp == WritePolicy::WriteBack){
 				// 1 cache access for check, 1 cache access for write, 1 mem access for write
-				c = this->ci.cacheAccessCycles * 2 + this->ci.memoryAccessCycles;
+				c += this->ci.cacheAccessCycles;
 			}
 			else { /* write through */
-				c = this->ci.cacheAccessCycles + this->ci.memoryAccessCycles;
+				c += this->ci.cacheAccessCycles + this->ci.memoryAccessCycles;
 			}
 		}
 	}
 	else { /* on read */
 		if (response->hit){
-			c = this->ci.cacheAccessCycles;
+			c += this->ci.cacheAccessCycles;
+			this->globalHits += 1;
 		}
 		else { // miss
 			// check cache, fail, check memory, then update cache
-			c = this->ci.cacheAccessCycles * 2 + this->ci.memoryAccessCycles;
+			c += this->ci.cacheAccessCycles * 2 + this->ci.memoryAccessCycles;
+			this->globalMisses += 1;
 		}
+	}
+
+	if (response->eviction || response->dirtyEviction){
+		// on eviction, we have to wait until we write to memory and then write to cache
+		c += this->ci.cacheAccessCycles + this->ci.memoryAccessCycles;
+		this->globalEvictions += 1;
 	}
 
 	response->cycles = c;

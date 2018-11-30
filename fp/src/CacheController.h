@@ -23,6 +23,8 @@ class CacheController {
 		unsigned int globalMisses;
 		unsigned int globalEvictions;
 		std::string inputFile, outputFile;
+		std::vector<unsigned long int> *cache;
+		unsigned int sentinel;
 
 		ConfigInfo ci;
 
