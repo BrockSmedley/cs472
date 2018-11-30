@@ -1,0 +1,10 @@
+
+*.pdf
+*.docx
+a4/ptcalc
+*.tex
+*.gz
+*.log
+*.aux
+fp/.vscode/settings.json
+*.out

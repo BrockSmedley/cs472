@@ -1,0 +1,8 @@
+8 <-- number of sets in cache (will be a non-negative power of 2)
+16 <-- block size in bytes (will be a non-negative power of 2)
+3 <-- level of associativity (number of blocks per set)
+1 <-- replacement policy (will be 0 for random replacement, 1 for LRU)
+1 <-- write policy (will be 0 for write-through, 1 for write-back)
+13 <-- number of cycles required to write or read a block from the cache
+230 <-- number of cycles required to write or read a block from main memory
+0 <-- cache coherence protocol (0 for simple implementation, 1 for MESI, only used for 572 projects)
