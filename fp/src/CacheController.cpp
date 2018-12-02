@@ -11,6 +11,7 @@
 #include <cmath>
 #include <sstream>
 #include <string>
+#include <cstdlib>
 
 using namespace std;
 
@@ -148,7 +149,6 @@ CacheController::AddressInfo CacheController::getAddressInfo(unsigned long int a
 }
 
 /*
-	Determine outcome: hit/miss/eviction
 	This function allows us to read or write to the cache.
 	The read or write is indicated by isWrite.
 */
@@ -165,6 +165,7 @@ void CacheController::cacheAccess(CacheResponse* response, bool isWrite, unsigne
 
 	// check each block in the set
 	// pretend this happens all at once
+	// Determine outcome: hit/miss/eviction
 	unsigned int i;
 	response->eviction = false;
 	response->dirtyEviction = false;
@@ -194,8 +195,17 @@ void CacheController::cacheAccess(CacheResponse* response, bool isWrite, unsigne
 		}
 		// otherwise, choose the first occupied block + LRU offset
 		else if (!occupiedBlocks.empty()){
-			blockAddress = occupiedBlocks.front() + this->setlruOffset->data()[ai.setIndex];
-			
+			// LRU runs by default. If random, just pick a new random offset.
+			if (this->ci.rp == ReplacementPolicy::Random){
+				srand(time(NULL));
+				cout << rand() << endl;
+				int r = rand() % this->ci.associativity;
+				cout << "RANDOM BLOCK OFFSET" << r << endl;
+				blockAddress = occupiedBlocks.front() + (r);
+			}
+			else
+				blockAddress = occupiedBlocks.front() + this->setlruOffset->data()[ai.setIndex];
+
 			// use round-robin technique to increment LRU
 			if (occupiedBlocks.size() == this->ci.associativity)
 			{
