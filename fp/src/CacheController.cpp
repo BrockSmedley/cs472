@@ -29,18 +29,22 @@ CacheController::CacheController(ConfigInfo ci, char* tracefile) {
 	this->globalEvictions = 0;
 	int numBlocks = this->ci.numberSets * this->ci.associativity;
 	this->sentinel = 999999999;
+	
 	cout << "# BLOCKS: " << numBlocks << endl;
 
-	cout << "initializationing" << endl;
 	//  init cache by placing a -1 at each cache location
 	static vector<unsigned long int> cache;
 	this->cache = &cache;
 	for (int i = 0; i < numBlocks; i++){
 		cache.push_back(this->sentinel);
 	}
-	
-	cout << "finished initialization" << endl;
-	
+
+	// init "LRU offset registers" w/ 0s
+	static vector<unsigned int> lruOffset;
+	this->setlruOffset = &lruOffset;
+	for (int i = 0; i < this->ci.numberSets; i++){
+		lruOffset.push_back(0);
+	}
 
 	// manual test code to see if the cache is behaving properly
 	// will need to be changed slightly to match the function prototype
@@ -140,65 +144,77 @@ CacheController::AddressInfo CacheController::getAddressInfo(unsigned long int a
 	// this code should be changed to assign the proper index and tag
 	ai.tag = address; // TODO: does this need to be changed??
 	ai.setIndex = address % (unsigned int)this->ci.numberSets;
-	cout << this->ci.numberSets << endl;
 	return ai;
 }
 
 /*
+	Determine outcome: hit/miss/eviction
 	This function allows us to read or write to the cache.
 	The read or write is indicated by isWrite.
 */
 void CacheController::cacheAccess(CacheResponse* response, bool isWrite, unsigned long int address) {
 	// determine the index and tag
 	AddressInfo ai = getAddressInfo(address);
+	vector<unsigned int> emptyBlocks;
+	vector<unsigned int> occupiedBlocks;
 
 	cout << "\tSet index: " << ai.setIndex << ", tag: " << ai.tag << endl;
-
-	// pretend this happens all at once
-	// determine outcome: hit/miss/eviction
+	
 	unsigned int blockAddress = this->ci.associativity * ai.setIndex;
-	
 	cout << "cache blocks online: " << this->cache->size() << endl;
-	
-	for (int i = 0; i < this->ci.associativity; i++)
+
+	// check each block in the set
+	// pretend this happens all at once
+	unsigned int i;
+	response->eviction = false;
+	response->dirtyEviction = false;
+	for (i = 0; i < this->ci.associativity; i++)
 	{
-		cout << "BLOCKADDR: " << blockAddress << endl;
+		cout << "BLOCKADDR: " << blockAddress + i << endl;
 		response->hit = false;
-		if (this->cache->at(blockAddress) == this->sentinel){ // not occupied; miss
-			//this->cache->at(1);
-			blockAddress++;
+
+		if (this->cache->data()[blockAddress + i] == this->sentinel){ // not occupied; miss
+			emptyBlocks.push_back(blockAddress + i);
 		}
-		else if (this->cache->data()[blockAddress] == ai.tag){ // hit
+		else if (this->cache->data()[blockAddress + i] == ai.tag){ // hit
 			cout << "HIT" << endl;
-			response->eviction = false;
-			response->dirtyEviction = false;
 			response->hit = true;
 			break;
 		}
-		else { // occupied; eviction, miss
-			if (isWrite){
-				response->eviction = true;
-				response->dirtyEviction = true;
-			}
-			else{
-				response->eviction = true;
-			}
-			blockAddress++;
+		else { // occupied; potential miss
+			occupiedBlocks.push_back(blockAddress + i);
 		}
-		
 	}
 
 	if (!response->hit)
-	{ // if miss, write tag
-		blockAddress--;
+	{ // if miss, set new block address and write tag to its cache location
+		// if we have empty blocks, choose the first one
+		if (!emptyBlocks.empty()){
+			blockAddress = emptyBlocks.front();
+		}
+		// otherwise, choose the first occupied block + LRU offset
+		else if (!occupiedBlocks.empty()){
+			blockAddress = occupiedBlocks.front() + this->setlruOffset->data()[ai.setIndex];
+			
+			// use round-robin technique to increment LRU
+			if (occupiedBlocks.size() == this->ci.associativity)
+			{
+				unsigned int offset = this->setlruOffset->data()[ai.setIndex];
+				cout << "OFFSET: " << offset << endl;
+				this->setlruOffset->data()[ai.setIndex] = (offset + 1) % this->ci.associativity;
+				response->eviction = true;
+				if (isWrite)
+					response->dirtyEviction = true;
+			}
+		}
+
 		cout << "cache[" << blockAddress << "] = " << cache->data()[blockAddress] << endl;
-		cache->data()[blockAddress] = ai.tag; // TODO: implement ReplacementPolicy here ([blockAddr])
+		this->cache->data()[blockAddress] = ai.tag;
 		cout << "Stored " << ai.tag << " at cache[" << blockAddress << "]" << endl;
-	}
-	
+	}	
 
 	// your code needs to update the global counters that track the number of hits, misses, and evictions
-	updateCycles(response, isWrite); 
+	updateCycles(response, isWrite);
 	this->globalCycles += response->cycles;
 
 	if (response->hit)

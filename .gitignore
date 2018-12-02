@@ -8,3 +8,5 @@ a4/ptcalc
 *.aux
 fp/.vscode/settings.json
 *.out
+.DS_Store
+.DS_Store

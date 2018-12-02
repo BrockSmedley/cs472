@@ -24,6 +24,7 @@ class CacheController {
 		unsigned int globalEvictions;
 		std::string inputFile, outputFile;
 		std::vector<unsigned long int> *cache;
+		std::vector<unsigned int> *setlruOffset;
 		unsigned int sentinel;
 
 		ConfigInfo ci;

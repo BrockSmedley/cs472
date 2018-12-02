@@ -77,6 +77,7 @@ int main(int argc, char* argv[]) {
 
 	// For singlethreaded operation, you use this:
 	initializeCache(0, config, argv[2]);
+	//cout << "WHAT" << endl;
 
 	return 0;
 }
