@@ -23,11 +23,13 @@ CacheController::CacheController(ConfigInfo ci, char* tracefile) {
 	// compute the other cache parameters
 	this->numByteOffsetBits = log2(ci.blockSize);
 	this->numSetIndexBits = log2(ci.numberSets);
+
 	// initialize the counters
 	this->globalCycles = 0;
 	this->globalHits = 0;
 	this->globalMisses = 0;
 	this->globalEvictions = 0;
+	
 	int numBlocks = this->ci.numberSets * this->ci.associativity;
 	this->sentinel = 999999999;
 	
@@ -200,7 +202,7 @@ void CacheController::cacheAccess(CacheResponse* response, bool isWrite, unsigne
 				srand(time(NULL));
 				cout << rand() << endl;
 				int r = rand() % this->ci.associativity;
-				cout << "RANDOM BLOCK OFFSET" << r << endl;
+				cout << "RANDOM BLOCK OFFSET: " << r << endl;
 				blockAddress = occupiedBlocks.front() + (r);
 			}
 			else
@@ -243,30 +245,24 @@ void CacheController::cacheAccess(CacheResponse* response, bool isWrite, unsigne
 */
 void CacheController::updateCycles(CacheResponse* response, bool isWrite) {
 	// your code should calculate the proper number of cycles
-	//this->ci.memoryAccessCycles // loads from config file
-	//this->ci.cacheAccessCycles
 	int c = 0;
 
 	if (isWrite){ /* on write */
+		if (this->ci.wp == WritePolicy::WriteThrough)
+		{
+			// write to memory and cache
+			c += this->ci.cacheAccessCycles + this->ci.memoryAccessCycles;
+		}
+		else
+		{ // in write-back, if we hit on a write, then we don't need to access MM.
+			c += this->ci.cacheAccessCycles;
+		}
+
 		if (response->hit){
 			this->globalHits += 1;
-			if (this->ci.wp == WritePolicy::WriteThrough){
-				// write to memory and cache
-				c += this->ci.cacheAccessCycles + this->ci.memoryAccessCycles;
-			}
-			else { // in write-back, if we hit on a write, then we don't need to access MM.
-				c += this->ci.cacheAccessCycles;
-			}
 		}
 		else { // miss
 			this->globalMisses += 1;
-			if (this->ci.wp == WritePolicy::WriteBack){
-				// 1 cache access for check, 1 cache access for write, 1 mem access for write
-				c += this->ci.cacheAccessCycles;
-			}
-			else { /* write through */
-				c += this->ci.cacheAccessCycles + this->ci.memoryAccessCycles;
-			}
 		}
 	}
 	else { /* on read */
