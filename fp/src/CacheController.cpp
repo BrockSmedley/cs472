@@ -239,8 +239,8 @@ void CacheController::cacheAccess(CacheResponse* response, bool isWrite, unsigne
 	// update LRU
 	if (this->setlruOffset->data()[ai.setIndex].size() == this->ci.associativity)
 		this->setlruOffset->data()[ai.setIndex].pop();
-	//if (this->setlruOffset->data()[ai.setIndex].back() != offset)
-	this->setlruOffset->data()[ai.setIndex].push(offset);
+	if (this->setlruOffset->data()[ai.setIndex].back() != offset)
+		this->setlruOffset->data()[ai.setIndex].push(offset);
 	//cout << "dangol offset man: " << offset << endl;
 
 	// your code needs to update the global counters that track the number of hits, misses, and evictions
