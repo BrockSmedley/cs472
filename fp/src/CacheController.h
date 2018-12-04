@@ -9,6 +9,7 @@
 
 #include "CacheStuff.h"
 #include <string>
+#include <queue>
 
 class CacheController {
 	private:
@@ -24,7 +25,7 @@ class CacheController {
 		unsigned int globalEvictions;
 		std::string inputFile, outputFile;
 		std::vector<unsigned long int> *cache;
-		std::vector<unsigned int> *setlruOffset;
+		std::vector<std::queue<unsigned int>> *setlruOffset;
 		unsigned int sentinel;
 
 		ConfigInfo ci;
@@ -35,6 +36,7 @@ class CacheController {
 		AddressInfo getAddressInfo(unsigned long int);
 		// compute the number of clock cycles used to complete a memory access
 		void updateCycles(CacheResponse*, bool);
+		void updateLRU();
 
 	public:
 		CacheController(ConfigInfo, char *);

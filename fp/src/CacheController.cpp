@@ -43,10 +43,11 @@ CacheController::CacheController(ConfigInfo ci, char* tracefile) {
 	}
 
 	// init "LRU offset registers" w/ 0s
-	static vector<unsigned int> lruOffset;
+	static vector<std::queue<unsigned int>> lruOffset;
 	this->setlruOffset = &lruOffset;
 	for (int i = 0; i < this->ci.numberSets; i++){
-		lruOffset.push_back(0);
+		lruOffset.push_back(queue<unsigned int>());
+		lruOffset[i].push(0);
 	}
 
 	// manual test code to see if the cache is behaving properly
@@ -152,6 +153,10 @@ CacheController::AddressInfo CacheController::getAddressInfo(unsigned long int a
 	return ai;
 }
 
+void CacheController::updateLRU(){
+
+}
+
 /*
 	This function allows us to read or write to the cache.
 	The read or write is indicated by isWrite.
@@ -161,11 +166,13 @@ void CacheController::cacheAccess(CacheResponse* response, bool isWrite, unsigne
 	AddressInfo ai = getAddressInfo(address);
 	vector<unsigned int> emptyBlocks;
 	vector<unsigned int> occupiedBlocks;
+	unsigned int offset = 0;
 
 	cout << "\tSet index: " << ai.setIndex << ", tag: " << ai.tag << endl;
 	
 	unsigned int blockNumber = this->ci.associativity * ai.setIndex;
 	//cout << "cache blocks online: " << this->cache->size() << endl;
+	//cout << "blockNum Init: " << blockNumber << endl;
 
 	// check each block in the set
 	// pretend this happens all at once
@@ -179,7 +186,7 @@ void CacheController::cacheAccess(CacheResponse* response, bool isWrite, unsigne
 		response->hit = false;
 
 		if (this->cache->data()[blockNumber + i] == this->sentinel){ // not occupied; miss
-			emptyBlocks.push_back(blockNumber + i);
+			emptyBlocks.push_back(i);
 		}
 		else if (this->cache->data()[blockNumber + i] == ai.tag){ // hit
 			cout << "HIT" << endl;
@@ -187,7 +194,7 @@ void CacheController::cacheAccess(CacheResponse* response, bool isWrite, unsigne
 			break;
 		}
 		else { // occupied; potential miss
-			occupiedBlocks.push_back(blockNumber + i);
+			occupiedBlocks.push_back(i);
 		}
 	}
 
@@ -195,7 +202,7 @@ void CacheController::cacheAccess(CacheResponse* response, bool isWrite, unsigne
 	{ // if miss, set new block address and write tag to its cache location
 		// if we have empty blocks, choose the first one
 		if (!emptyBlocks.empty()){
-			blockNumber = emptyBlocks.front();
+			offset = emptyBlocks.front();
 		}
 		// otherwise, choose the first occupied block + LRU offset
 		else if (!occupiedBlocks.empty()){
@@ -205,27 +212,36 @@ void CacheController::cacheAccess(CacheResponse* response, bool isWrite, unsigne
 				cout << rand() << endl;
 				int r = rand() % this->ci.associativity;
 				cout << "RANDOM BLOCK OFFSET: " << r << endl;
-				blockNumber = occupiedBlocks.front() + (r);
+				offset = r;
 			}
-			else
-				blockNumber = occupiedBlocks.front() + this->setlruOffset->data()[ai.setIndex];
+			else{
+				offset = this->setlruOffset->data()[ai.setIndex].front();
+				//this->setlruOffset->data()[ai.setIndex].pop();
+			}
 
-			// use round-robin technique to increment LRU
-			if (occupiedBlocks.size() == this->ci.associativity)
-			{
-				unsigned int offset = this->setlruOffset->data()[ai.setIndex];
+			// update evictions
+			if (occupiedBlocks.size() == this->ci.associativity){
 				cout << "OFFSET: " << offset << endl;
-				this->setlruOffset->data()[ai.setIndex] = (offset + 1) % this->ci.associativity;
 				response->eviction = true;
 				if (isWrite)
 					response->dirtyEviction = true;
 			}
 		}
 
+		blockNumber = (blockNumber + offset);
+		
+
 		cout << "cache[" << blockNumber << "] = " << cache->data()[blockNumber] << endl;
 		this->cache->data()[blockNumber] = ai.tag;
 		cout << "Stored " << ai.tag << " at cache[" << blockNumber << "]" << endl;
-	}	
+	}
+
+	// update LRU
+	if (this->setlruOffset->data()[ai.setIndex].size() == this->ci.associativity)
+		this->setlruOffset->data()[ai.setIndex].pop();
+	//if (this->setlruOffset->data()[ai.setIndex].back() != offset)
+	this->setlruOffset->data()[ai.setIndex].push(offset);
+	//cout << "dangol offset man: " << offset << endl;
 
 	// your code needs to update the global counters that track the number of hits, misses, and evictions
 	updateCycles(response, isWrite);
