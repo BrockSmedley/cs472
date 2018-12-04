@@ -144,9 +144,11 @@ void CacheController::runTracefile() {
 */
 CacheController::AddressInfo CacheController::getAddressInfo(unsigned long int address) {
 	AddressInfo ai;
-	// this code should be changed to assign the proper index and tag
-	ai.tag = address; // TODO: does this need to be changed??
-	ai.setIndex = address % (unsigned int)this->ci.numberSets;
+	// assign the proper index and tag
+	ai.tag = address;
+	unsigned long int blockAddr = address / (long)this->ci.blockSize;
+	cout << "BLOCK ADDRESS: " << blockAddr << endl;
+	ai.setIndex = blockAddr % (unsigned long int)this->ci.numberSets;
 	return ai;
 }
 
@@ -162,8 +164,8 @@ void CacheController::cacheAccess(CacheResponse* response, bool isWrite, unsigne
 
 	cout << "\tSet index: " << ai.setIndex << ", tag: " << ai.tag << endl;
 	
-	unsigned int blockAddress = this->ci.associativity * ai.setIndex;
-	cout << "cache blocks online: " << this->cache->size() << endl;
+	unsigned int blockNumber = this->ci.associativity * ai.setIndex;
+	//cout << "cache blocks online: " << this->cache->size() << endl;
 
 	// check each block in the set
 	// pretend this happens all at once
@@ -173,19 +175,19 @@ void CacheController::cacheAccess(CacheResponse* response, bool isWrite, unsigne
 	response->dirtyEviction = false;
 	for (i = 0; i < this->ci.associativity; i++)
 	{
-		cout << "BLOCKADDR: " << blockAddress + i << endl;
+		cout << "BLOCK NUMBER: " << blockNumber + i << endl;
 		response->hit = false;
 
-		if (this->cache->data()[blockAddress + i] == this->sentinel){ // not occupied; miss
-			emptyBlocks.push_back(blockAddress + i);
+		if (this->cache->data()[blockNumber + i] == this->sentinel){ // not occupied; miss
+			emptyBlocks.push_back(blockNumber + i);
 		}
-		else if (this->cache->data()[blockAddress + i] == ai.tag){ // hit
+		else if (this->cache->data()[blockNumber + i] == ai.tag){ // hit
 			cout << "HIT" << endl;
 			response->hit = true;
 			break;
 		}
 		else { // occupied; potential miss
-			occupiedBlocks.push_back(blockAddress + i);
+			occupiedBlocks.push_back(blockNumber + i);
 		}
 	}
 
@@ -193,7 +195,7 @@ void CacheController::cacheAccess(CacheResponse* response, bool isWrite, unsigne
 	{ // if miss, set new block address and write tag to its cache location
 		// if we have empty blocks, choose the first one
 		if (!emptyBlocks.empty()){
-			blockAddress = emptyBlocks.front();
+			blockNumber = emptyBlocks.front();
 		}
 		// otherwise, choose the first occupied block + LRU offset
 		else if (!occupiedBlocks.empty()){
@@ -203,10 +205,10 @@ void CacheController::cacheAccess(CacheResponse* response, bool isWrite, unsigne
 				cout << rand() << endl;
 				int r = rand() % this->ci.associativity;
 				cout << "RANDOM BLOCK OFFSET: " << r << endl;
-				blockAddress = occupiedBlocks.front() + (r);
+				blockNumber = occupiedBlocks.front() + (r);
 			}
 			else
-				blockAddress = occupiedBlocks.front() + this->setlruOffset->data()[ai.setIndex];
+				blockNumber = occupiedBlocks.front() + this->setlruOffset->data()[ai.setIndex];
 
 			// use round-robin technique to increment LRU
 			if (occupiedBlocks.size() == this->ci.associativity)
@@ -220,9 +222,9 @@ void CacheController::cacheAccess(CacheResponse* response, bool isWrite, unsigne
 			}
 		}
 
-		cout << "cache[" << blockAddress << "] = " << cache->data()[blockAddress] << endl;
-		this->cache->data()[blockAddress] = ai.tag;
-		cout << "Stored " << ai.tag << " at cache[" << blockAddress << "]" << endl;
+		cout << "cache[" << blockNumber << "] = " << cache->data()[blockNumber] << endl;
+		this->cache->data()[blockNumber] = ai.tag;
+		cout << "Stored " << ai.tag << " at cache[" << blockNumber << "]" << endl;
 	}	
 
 	// your code needs to update the global counters that track the number of hits, misses, and evictions
