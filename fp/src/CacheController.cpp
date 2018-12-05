@@ -45,7 +45,7 @@ CacheController::CacheController(ConfigInfo ci, char* tracefile) {
 	// init "LRU offset registers" w/ 0s
 	static vector<std::queue<unsigned int>> lruOffset;
 	this->setlruOffset = &lruOffset;
-	for (int i = 0; i < this->ci.numberSets; i++){
+	for (unsigned int i = 0; i < this->ci.numberSets; i++){
 		lruOffset.push_back(queue<unsigned int>());
 		lruOffset[i].push(0);
 	}
@@ -61,6 +61,14 @@ CacheController::CacheController(ConfigInfo ci, char* tracefile) {
 	cacheAccess(false, 128);
 	cacheAccess(false, 256);
 	*/
+}
+
+// Function to extract k bits from p position
+// and returns the extracted value as integer
+unsigned long int bitExtracted(unsigned long int number, unsigned int k, unsigned int p)
+{
+	return (((1 << k) - 1) & (number >> (p - 1)));
+	// thanks https://www.geeksforgeeks.org/extract-k-bits-given-position-number/
 }
 
 /*
@@ -146,7 +154,9 @@ void CacheController::runTracefile() {
 CacheController::AddressInfo CacheController::getAddressInfo(unsigned long int address) {
 	AddressInfo ai;
 	// assign the proper index and tag
-	ai.tag = address;
+	unsigned int tagSize = 64 - this->numSetIndexBits - this->numByteOffsetBits;
+	ai.tag = bitExtracted(address, tagSize, 0);
+	//ai.tag = address;// TODO: CHANGE ME
 	unsigned long int blockAddr = address / (long)this->ci.blockSize;
 	cout << "BLOCK ADDRESS: " << blockAddr << endl;
 	ai.setIndex = blockAddr % (unsigned long int)this->ci.numberSets;
