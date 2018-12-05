@@ -299,8 +299,8 @@ void CacheController::updateCycles(CacheResponse* response, bool isWrite) {
 			this->globalHits += 1;
 		}
 		else { // miss
-			// check cache, fail, check memory, then update cache
-			c += this->ci.cacheAccessCycles * 2 + this->ci.memoryAccessCycles;
+			// check memory, then update cache
+			c += this->ci.cacheAccessCycles + this->ci.memoryAccessCycles;
 			this->globalMisses += 1;
 		}
 	}
